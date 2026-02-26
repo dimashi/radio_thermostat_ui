@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Table Scheduler</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        .day-row {
+            display: flex;
+            align-items: top;
+            border-top: 1px solid #ccc;
+            padding-bottom: 1ch;
+        }
+        .day-label {
+            display: inline-block;
+            width: 5ch;
+            text-align: left;
+        }
+        .time-slot {
+            display: inline-flex;
+            width: 21ch;
+            gap: 4px;
+        }
+        .temp {          
+            width: 6ch;
+        }
+        .diff {
+            font-size: 0.75em;
+            color: red;
+            display: block;
+        }
+        .input-wrapper {
+            display: flex;
+            flex-direction: column;
+        }
+        .submit-button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .state-panel {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 20px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+        .state-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        .state-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .state-field {
+            padding: 5px;
+            background-color: #fff;
+            border: 1px solid #eee;
+            border-radius: 2px;
+        }
+        .state-label {
+            font-weight: 600;
+            color: #333;
+        }
+        .state-value {
+            color: #666;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+<div x-data="{
+    days: {},
+    originalDays: {},
+    state: null,
+    currentTemp: null,
+
+    defaultSlot: {'time': '00:00', 'temp': '0'},
+    defaultSlots: [this.defaultSlot, this.defaultSlot, this.defaultSlot, this.defaultSlot],
+    defaultDays: {
+        'Mon': this.defaultSlots,
+        'Tue': this.defaultSlots,
+        'Wed': this.defaultSlots,
+        'Thu': this.defaultSlots,
+        'Fri': this.defaultSlots,
+        'Sat': this.defaultSlots,
+        'Sun': this.defaultSlots,
+    },
+    
+    async init() {
+        // Fetch schedule
+        const schedulePromise = this.loadSchedule();
+        
+        // Fetch current state
+        await this.loadState();
+        await schedulePromise; // Ensure schedule is loaded after state
+    },
+
+    async loadSchedule() {
+        try {
+            const response = await fetch('/api/schedule', {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            if (response.ok) {
+                this.days = await response.json();
+                this.originalDays = JSON.parse(JSON.stringify(this.days)); // Deep copy for change tracking
+            }
+        } catch (error) {
+            console.error('Error loading schedule:', error);
+        }
+    },
+    
+    async loadState() {
+        try {
+            const response = await fetch('/api/state', {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            if (response.ok) {
+                this.state = await response.json();
+                this.currentTemp = this.state.temp;
+            }
+        } catch (error) {
+            console.error('Error loading state:', error);
+        }
+    },
+    getOriginalValue(day, index, field) {
+        return this.originalDays[day]?.[index]?.[field] || '';
+    },
+    hasChanged(day, index, field) {
+        const current = this.days[day]?.[index]?.[field];
+        const original = this.originalDays[day]?.[index]?.[field];
+        return current != original;
+    },
+    async submitSchedule() {
+        const response = await fetch('/api/schedule', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(this.days)
+        });
+        
+        if (response.ok) {
+            this.originalDays = JSON.parse(JSON.stringify(this.days)); // Clear diffs
+            alert('Schedule saved!');
+        } else {
+            alert('Error: ' + response.statusText);
+        }
+    }
+}">
+    <div class="state-panel" x-show="state">
+        <div class="state-title">Thermostat State</div>
+        <div class="state-row">
+            <div class="state-field"><span class="state-label">Current Temp:</span> <span class="state-value" x-text="state?.temp ?? 'N/A'"></span></div>
+            <div class="state-field"><span class="state-label">Target Heat:</span> <span class="state-value" x-text="state?.t_heat ?? 'N/A'"></span></div>
+        </div>
+        <div class="state-row">
+            <div class="state-field"><span class="state-label">Thermostat Mode:</span> <span class="state-value" x-text="state?.tmode ?? 'N/A'"></span></div>
+            <div class="state-field"><span class="state-label">Fan Mode:</span> <span class="state-value" x-text="state?.fmode ?? 'N/A'"></span></div>
+        </div>
+        <div class="state-row">
+            <div class="state-field"><span class="state-label">Override:</span> <span class="state-value" x-text="state?.override ?? 'N/A'"></span></div>
+            <div class="state-field"><span class="state-label">Hold:</span> <span class="state-value" x-text="state?.hold ?? 'N/A'"></span></div>
+        </div>
+        <div class="state-row">
+            <div class="state-field"><span class="state-label">Thermostat State:</span> <span class="state-value" x-text="state?.tstate ?? 'N/A'"></span></div>
+            <div class="state-field"><span class="state-label">Fan State:</span> <span class="state-value" x-text="state?.fstate ?? 'N/A'"></span></div>
+        </div>
+        <div class="state-row">
+            <div class="state-field"><span class="state-label">Type Post:</span> <span class="state-value" x-text="state?.t_type_post ?? 'N/A'"></span></div>
+            <div class="state-field"><span class="state-label">Time (day:hour:min):</span> <span class="state-value" x-text="state?.time ? state.time.day + ':' + String(state.time.hour).padStart(2, '0') + ':' + String(state.time.minute).padStart(2, '0') : 'N/A'"></span></div>
+        </div>
+    </div>
+    <template x-for="(array, key) in days" :key="key">
+        <div class="day-row">
+            <span class="day-label" x-text="key"></span>
+            <template x-for="(timeSlot, index) in array" :key="timeSlot.time">
+                <span class="time-slot">
+                    <div class="input-wrapper">
+                        <input type="time" x-model="timeSlot.time">
+                        <template x-if="hasChanged(key, index, 'time')">
+                            <span class="diff" x-text="'was: ' + getOriginalValue(key, index, 'time')"></span>
+                        </template>
+                    </div>
+                    <div class="input-wrapper">
+                        <input type="number" class="temp" x-model="timeSlot.temp">
+                        <template x-if="hasChanged(key, index, 'temp')">
+                            <span class="diff" x-text="'was: ' + getOriginalValue(key, index, 'temp')"></span>
+                        </template>
+                    </div>
+                </span>
+            </template>
+        </div>
+    </template>
+    <button class="submit-button" @click="submitSchedule()">Submit Schedule</button>
+</div>
+</body>
+</html>

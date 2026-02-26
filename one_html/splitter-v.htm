@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script defer src="https://unpkg.com/@alpinejs/persist@3.x.x/dist/cdn.min.js"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://unpkg.com/split.js/dist/split.min.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 30px; background: #f4f4f4; }
+    .flex-container { display: flex; flex-direction: column; height: 600px; border: 1px solid #333; background: white; }
+    .panel { position: relative; display: flex; align-items: center; justify-content: center; }
+    .panel-content { overflow: hidden; white-space: nowrap; }
+
+    .time-label {
+      position: absolute;
+      left: 10px;
+      bottom: -15px;
+      z-index: 1000;
+      background: #2d3436;
+      color: white;
+      padding: 2px 4px;
+      border-radius: 2px;
+      display: flex;
+      align-items: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    /* Logic for 'minimum necessary width' */
+    .time-label input {
+      border: none;
+      border-radius: 2px;
+      padding: 2px;
+      font-weight: bold;
+      background: #fff;
+      color: #333;
+      
+      /* Use a variable set by JavaScript to fit the locale exactly */
+      width: var(--input-width, 10ch); 
+      min-width: fit-content;
+    }
+
+    .gutter { background: #ddd; cursor: row-resize; height: 10px; position: relative; z-index: 10; }
+    .gutter:hover { background: #3b82f6; }
+  </style>
+</head>
+<body>
+
+<div x-data="{ 
+    panels: $persist([
+        { name: 'Shift A', size: 30 },
+        { name: 'Shift B', size: 40 },
+        { name: 'Shift C', size: 30 }
+    ]).as('locale-panels'),
+    split: null,
+    inputWidth: '10ch', // Default fallback
+
+    // Detect user's regional time format
+    detectLocaleWidth() {
+        const testDate = new Date(2025, 0, 1, 14, 30); // 2:30 PM
+        const timeStr = testDate.toLocaleTimeString();
+        const isAmPm = /[a-z]/i.test(timeStr);
+        
+        // 12h format (AM/PM) + browser icon + padding
+        // 24h format + browser icon + padding
+        this.inputWidth = isAmPm ? '13ch' : '8ch';
+        document.documentElement.style.setProperty('--input-width', this.inputWidth);
+    },
+
+    formatTime(decimalHours) {
+        let h = Math.floor(decimalHours);
+        let m = Math.round((decimalHours - h) * 60);
+        if (m === 60) { h++; m = 0; }
+        return `${String(h % 24).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    },
+
+    parseTime(timeStr) {
+        if (!timeStr) return 0;
+        const [h, m] = timeStr.split(':').map(Number);
+        return h + (m / 60);
+    },
+
+    getGutterTime(index) {
+        let percentSum = 0;
+        for(let i = 0; i <= index; i++) { percentSum += this.panels[i].size; }
+        return this.formatTime(percentSum * 0.24);
+    },
+
+    init() {
+        this.detectLocaleWidth();
+        this.$nextTick(() => {
+            const ids = this.panels.map((_, i) => `#p${i}`);
+            this.split = Split(ids, {
+                sizes: this.panels.map(p => p.size),
+                direction: 'vertical',
+                gutterSize: 10,
+                minSize: 0,
+                snapOffset: 0,
+                onDrag: (newSizes) => {
+                    newSizes.forEach((s, i) => this.panels[i].size = s);
+                }
+            });
+        });
+    },
+
+    moveGutter(index, val) {
+        let targetPercent = this.parseTime(val) / 0.24;
+        let prevSum = 0;
+        for(let i = 0; i < index; i++) { prevSum += this.panels[i].size; }
+        
+        let nextSum = 100;
+        if (index + 2 < this.panels.length) {
+            let sum = 0;
+            for(let i = 0; i <= index + 1; i++) { sum += this.panels[i].size; }
+            nextSum = sum;
+        }
+
+        targetPercent = Math.min(Math.max(prevSum, targetPercent), nextSum);
+        this.panels[index].size = targetPercent - prevSum;
+        this.panels[index + 1].size = nextSum - targetPercent;
+        this.split.setSizes(this.panels.map(p => p.size));
+    }
+}">
+
+  <div class="flex-container">
+    <template x-for="(panel, i) in panels" :key="i">
+        <div :id="'p' + i" class="panel" :style="'background-color: hsl(' + (i * 120) + ', 40%, 94%)'">
+          <div class="panel-content" x-text="panel.name"></div>
+          <template x-if="i < panels.length - 1">
+             <div class="time-label">
+               <input type="time" :value="getGutterTime(i)" @input="moveGutter(i, $event.target.value)">
+               <span style="margin: 0 5px;">&nbsp;</span>
+     
+               <input type="number" 
+            style="width: 4ch; padding: 2px 0; border: 1px solid #ccc; text-align: center;"
+            placeholder="0000">
+             </div>
+          </template>
+        </div>
+    </template>
+  </div>
+</div>
+
+</body>
+</html>

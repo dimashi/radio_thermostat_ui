@@ -1,0 +1,22 @@
+<div x-data="timeSplitter" class="ts-container">
+    <template x-for="(panel, i) in panels" :key="i">
+        <div :id="getPanelId(i)" class="ts-panel" :style="`background: hsl(${i * 45}, 40%, 95%)` ">
+            <div class="ts-content">
+                <strong x-text="panel.name"></strong>
+                <span class="ts-size-text" x-text="Math.round(panel.size) + '%'"></span>
+            </div>
+            
+            <template x-if="i < panels.length - 1">
+                <div class="ts-time-label">
+                    <input type="time" 
+                           :style="{width: inputWidth}" 
+                           :value="getGutterTime(i)" 
+                           @input="moveGutter(i, $event.target.value)">
+                    <span class="ts-separator">|</span>
+                    <input type="number" class="ts-num-input" value="100">
+                    <span class="ts-unit">F</span>
+                </div>
+            </template>
+        </div>
+    </template>
+</div>

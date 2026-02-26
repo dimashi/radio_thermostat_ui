@@ -1,0 +1,14 @@
+<head>
+    <script src="https://unpkg.com/split.js/dist/split.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <script src="/components/time-scheduler/scheduler-wc.js"></script>
+</head>
+<body>
+    <div style="height: 600px; padding: 20px;">
+        <time-scheduler 
+            storage-key="main-day"
+            panels='[{"name":"Deep Work","size":40}, {"name":"Lunch","size":20}, {"name":"Email","size":40}]'>
+        </time-scheduler>
+    </div>
+</body>
