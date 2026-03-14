@@ -72,6 +72,24 @@
             color: #666;
             font-family: monospace;
         }
+        .time-sync-green {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 3px 6px;
+            border-radius: 3px;
+        }
+        .time-sync-yellow {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 3px 6px;
+            border-radius: 3px;
+        }
+        .time-sync-red {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 3px 6px;
+            border-radius: 3px;
+        }
     </style>
 </head>
 <body>
@@ -79,7 +97,7 @@
     days: {},
     originalDays: {},
     state: null,
-    currentTemp: null,
+    // currentTemp: null,
 
     defaultSlot: {'time': '00:00', 'temp': '0'},
     defaultSlots: [this.defaultSlot, this.defaultSlot, this.defaultSlot, this.defaultSlot],
@@ -125,7 +143,7 @@
             });
             if (response.ok) {
                 this.state = await response.json();
-                this.currentTemp = this.state.temp;
+                // this.currentTemp = this.state.temp;
             }
         } catch (error) {
             console.error('Error loading state:', error);
@@ -138,6 +156,27 @@
         const current = this.days[day]?.[index]?.[field];
         const original = this.originalDays[day]?.[index]?.[field];
         return current != original;
+    },
+    getTimeDiffClass() {
+        if (!this.state?.time || !this.state?.server_time) {
+            return '';
+        }
+        
+        // Convert both times to minutes since midnight
+        const thermostatMinutes = this.state.time.hour * 60 + this.state.time.minute;
+        const serverMinutes = this.state.server_time.hour * 60 + this.state.server_time.minute;
+        
+        // Calculate absolute difference
+        let diff = Math.abs(thermostatMinutes - serverMinutes);
+        
+        // Handle day wrap-around (if diff > 12 hours, it's probably crossing midnight)
+        if (diff > 12 * 60) {
+            diff = 24 * 60 - diff;
+        }
+        
+        if (diff < 1) return 'time-sync-green';
+        if (diff < 15) return 'time-sync-yellow';
+        return 'time-sync-red';
     },
     async submitSchedule() {
         const response = await fetch('/api/schedule', {
@@ -174,7 +213,11 @@
         </div>
         <div class="state-row">
             <div class="state-field"><span class="state-label">Type Post:</span> <span class="state-value" x-text="state?.t_type_post ?? 'N/A'"></span></div>
-            <div class="state-field"><span class="state-label">Time (day:hour:min):</span> <span class="state-value" x-text="state?.time ? state.time.day + ':' + String(state.time.hour).padStart(2, '0') + ':' + String(state.time.minute).padStart(2, '0') : 'N/A'"></span></div>
+            <div class="state-field"><span class="state-label">Time (day hour:min):</span> <span class="state-value" :class="getTimeDiffClass()" x-text="state?.time ? state.time.day + ' ' + String(state.time.hour).padStart(2, '0') + ':' + String(state.time.minute).padStart(2, '0') : 'N/A'"></span></div>
+            <div class="state-field"><span class="state-label">Server Time (day hour:min):</span> <span class="state-value" x-text="state?.server_time ? state.server_time.day + ' ' + String(state.server_time.hour).padStart(2, '0') + ':' + String(state.server_time.minute).padStart(2, '0') : 'N/A'"></span></div>
+        </div>
+        <div class="state-row">
+            <div class="state-field"><span class="state-label">Time Status:</span> <span class="state-value" x-text="state?.time_status ?? 'N/A'"></span></div>
         </div>
     </div>
     <template x-for="(array, key) in days" :key="key">

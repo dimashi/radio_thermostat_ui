@@ -1,9 +1,11 @@
 import httpx
 import json
 import logging
+import time
+import asyncio
 from fastapi import HTTPException
 from schedule_dto import ScheduleData, TimeSlot
-from state_dto import StateDTO
+from state_dto import StateDTO, TimeInfo
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -110,7 +112,38 @@ class Server:
         
             return raw_data
 
-    
+    async def set_time(self, time_info: TimeInfo):
+        """Set the thermostat time via POST to /tstat/time."""
+        time_url = "http://thermostat-22-33-6A/tstat/time"
+        
+        # Convert TimeInfo to dict format for JSON
+        time_data = {
+            "day": time_info.day,
+            "hour": time_info.hour,
+            "minute": time_info.minute
+        }
+        
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            try:
+                response = await client.post(time_url, json=time_data)
+                response.raise_for_status()
+                logger.info(f"Successfully set thermostat time to {time_data}")
+                return response.json()
+            except httpx.HTTPStatusError as exc:
+                tstat_code = exc.response.status_code
+                logger.error(f"Thermostat returned error code {tstat_code} when setting time: {exc.response.text}")
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Thermostat returned error code: {tstat_code}. Message: {exc.response.text}"
+                )
+            except httpx.TimeoutException:
+                logger.error("Thermostat timed out when setting time")
+                raise HTTPException(status_code=504, detail="Thermostat timed out.")
+            except httpx.RequestError as exc:
+                logger.error(f"Network error when setting thermostat time: {exc}")
+                raise HTTPException(status_code=502, detail=f"Network error contacting thermostat: {exc}")
+
+                
     async def get_state(self):
         """Fetch the current thermostat state and return as StateDTO."""
         state_url = "http://thermostat-22-33-6A/tstat"
@@ -131,6 +164,31 @@ class Server:
                 raise HTTPException(status_code=502, detail=f"Network error contacting thermostat: {exc}")
 
             logger.info(f"Received thermostat state: {json.dumps(raw_data, indent=2)}")
+            current_time = time.localtime()
+            server_time_info = TimeInfo(day=current_time.tm_wday, hour=current_time.tm_hour, minute=current_time.tm_min)
+            raw_data['server_time'] = server_time_info
+            
+            # Calculate time_status based on difference between thermostat time and server time
+            thermostat_time = raw_data['time']
+            thermostat_minutes = thermostat_time['hour'] * 60 + thermostat_time['minute']
+            server_minutes = server_time_info.hour * 60 + server_time_info.minute
+            
+            diff = abs(thermostat_minutes - server_minutes)
+            # Handle day wrap-around
+            if diff > 12 * 60:
+                diff = 24 * 60 - diff
+            
+            is_in_sync = diff < 1
+            raw_data['time_status'] = "in sync" if is_in_sync else "synchronizing time"
+            
+            # If time is out of sync, attempt to sync it in the background
+            if not is_in_sync:
+                task = asyncio.create_task(self.set_time(server_time_info))
+                # Add error callback to log failures
+                task.add_done_callback(
+                    lambda t: logger.warning(f"Failed to set thermostat time") if t.exception() else None
+                )
+            
             return StateDTO(**raw_data)
 
 # --- Helper Logic ---

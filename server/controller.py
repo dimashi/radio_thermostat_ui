@@ -8,7 +8,7 @@ from cashews import cache
 from cashews.key import get_cache_key, get_cache_key_template
 
 from schedule_dto import ScheduleData
-from state_dto import StateDTO
+from state_dto import StateDTO, TimeInfo
 from server import Server
 
 CACHE_KEY_SCHEDULE = "schedule"
@@ -16,7 +16,7 @@ CACHE_KEY_SCHEDULE = "schedule"
 # Get the base directory (parent of server directory)
 BASE_DIR = Path(__file__).parent.parent
 
-server = Server()
+server: Server = Server()
 app = FastAPI(title="Radio Thermostat Scheduler API")
 cache.setup("mem://")
 
@@ -84,6 +84,7 @@ async def update_schedule(schedule: ScheduleData):
 async def get_state():
     """Get current thermostat state as StateDTO"""
     state = await server.get_state()
+    current_time = time.localtime()
     return state
 
 

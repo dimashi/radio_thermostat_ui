@@ -18,5 +18,7 @@ class StateDTO(BaseModel):
     t_heat: float
     tstate: int
     fstate: int
-    time: TimeInfo
     t_type_post: int
+    time: TimeInfo
+    server_time: TimeInfo
+    time_status: str

@@ -1,3 +1,0 @@
-class Server:
-    def get_schedule_from_thermostat():
-        return 
