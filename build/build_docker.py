@@ -269,8 +269,8 @@ class DependencyAnalyzer:
         
         self.print_analysis()
         
-        # Generate requirements - read from build/requirements.txt
-        requirements_file = self.root_path / "build" / "requirements.txt"
+        # Generate requirements - read from project root
+        requirements_file = self.root_path / "requirements.txt"
         used_reqs = self.get_used_requirements(requirements_file)
         
         print(f"\n[+] Used Requirements ({len(used_reqs)}):")
