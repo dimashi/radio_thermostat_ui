@@ -53,9 +53,7 @@ async def traffic_middleware(request: Request, call_next):
 @app.get("/")
 async def get_schedule_page():
     """Serve the schedule HTML page"""
-    html_path = BASE_DIR / "components" / "table_scheduler" / "scheduler.html"
-    if not html_path.exists():
-        raise HTTPException(status_code=404, detail="Schedule page not found")
+    html_path = BASE_DIR / "client/components/table_scheduler/scheduler.html"
     return FileResponse(html_path)
 
 
@@ -65,6 +63,7 @@ async def get_schedule():
     return await server.get_thermostat_schedule()
 
 def get_schedule_key():
+    # magic "v2" comes from line 56 or early.py.
     key_template = get_cache_key_template(get_schedule, prefix="early:v2")
     return get_cache_key(get_schedule, key_template)
 
@@ -72,7 +71,6 @@ def get_schedule_key():
 @app.put("/api/schedule")
 async def update_schedule(schedule: ScheduleData):
     result = await server.update_thermostat_schedule(schedule)
-
     cache_key = get_schedule_key()
     cached_value = await cache.get(cache_key)
     # Maintain tuple structure: [first_element, schedule]

@@ -1,0 +1,35 @@
+# Stage 1: Build stage
+FROM python:3.12-alpine AS builder
+
+# Install build dependencies (gcc, musl-dev needed for uvicorn[standard])
+RUN apk add --no-cache \
+    gcc \
+    musl-dev \
+    python3-dev
+
+WORKDIR /build
+
+# Install dependencies into a temporary directory
+COPY requirements-minimal.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements-minimal.txt
+
+# Stage 2: Runtime stage
+FROM python:3.12-alpine
+
+WORKDIR /app
+
+# Copy only the compiled site-packages from the builder
+COPY --from=builder /install /usr/local
+
+# Copy app files from build/.dist
+COPY build/.dist/ .
+
+# Copy client files
+COPY client/components/table_scheduler/ /app/client/components/table_scheduler/
+
+# Set Python path
+ENV PYTHONPATH=/app/server
+
+EXPOSE 8080
+
+CMD ["python", "-m", "uvicorn", "controller:app", "--host", "0.0.0.0", "--port", "8080", "--app-dir", "/app/server"]
