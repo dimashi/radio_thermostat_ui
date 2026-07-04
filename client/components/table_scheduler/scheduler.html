@@ -4,99 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Table Scheduler</title>
+    <link rel="stylesheet" href="../../css/scheduler.css">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <style>
-        .day-row {
-            display: flex;
-            align-items: top;
-            border-top: 1px solid #ccc;
-            padding-bottom: 1ch;
-        }
-        .day-label {
-            display: inline-block;
-            width: 5ch;
-            text-align: left;
-        }
-        .time-slot {
-            display: inline-flex;
-            width: 21ch;
-            gap: 4px;
-        }
-        .temp {          
-            width: 6ch;
-        }
-        .diff {
-            font-size: 0.75em;
-            color: red;
-            display: block;
-        }
-        .input-wrapper {
-            display: flex;
-            flex-direction: column;
-        }
-        .submit-button {
-            margin-top: 20px;
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-        .state-panel {
-            border: 1px solid #ddd;
-            padding: 15px;
-            margin-bottom: 20px;
-            background-color: #f9f9f9;
-            border-radius: 4px;
-        }
-        .state-title {
-            font-weight: bold;
-            margin-bottom: 10px;
-            font-size: 18px;
-        }
-        .state-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 8px;
-        }
-        .state-field {
-            padding: 5px;
-            background-color: #fff;
-            border: 1px solid #eee;
-            border-radius: 2px;
-        }
-        .state-label {
-            font-weight: 600;
-            color: #333;
-        }
-        .state-value {
-            color: #666;
-            font-family: monospace;
-        }
-        .time-sync-green {
-            background-color: #d4edda;
-            color: #155724;
-            padding: 3px 6px;
-            border-radius: 3px;
-        }
-        .time-sync-yellow {
-            background-color: #fff3cd;
-            color: #856404;
-            padding: 3px 6px;
-            border-radius: 3px;
-        }
-        .time-sync-red {
-            background-color: #f8d7da;
-            color: #721c24;
-            padding: 3px 6px;
-            border-radius: 3px;
-        }
-    </style>
 </head>
 <body>
 <div x-data="{
     days: {},
     originalDays: {},
     state: null,
+    showOtherFields: false,
+    scheduleLoaded: false,
+    stateLoaded: false,
     // currentTemp: null,
 
     defaultSlot: {'time': '00:00', 'temp': '0'},
@@ -129,9 +47,14 @@
             if (response.ok) {
                 this.days = await response.json();
                 this.originalDays = JSON.parse(JSON.stringify(this.days)); // Deep copy for change tracking
+            } else {
+                this.days = {};
             }
         } catch (error) {
             console.error('Error loading schedule:', error);
+            this.days = {};
+        } finally {
+            this.scheduleLoaded = true;
         }
     },
     
@@ -144,9 +67,14 @@
             if (response.ok) {
                 this.state = await response.json();
                 // this.currentTemp = this.state.temp;
+            } else {
+                this.state = null;
             }
         } catch (error) {
             console.error('Error loading state:', error);
+            this.state = null;
+        } finally {
+            this.stateLoaded = true;
         }
     },
     getOriginalValue(day, index, field) {
@@ -157,7 +85,7 @@
         const original = this.originalDays[day]?.[index]?.[field];
         return current != original;
     },
-    getTimeDiffClass() {
+    getThermostatToServerTimeDiff() {
         if (!this.state?.time || !this.state?.server_time) {
             return '';
         }
@@ -173,7 +101,10 @@
         if (diff > 12 * 60) {
             diff = 24 * 60 - diff;
         }
-        
+        return diff;
+    },
+    getTimeDiffClass() {
+        const diff = this.getThermostatToServerTimeDiff();
         if (diff < 1) return 'time-sync-green';
         if (diff < 15) return 'time-sync-yellow';
         return 'time-sync-red';
@@ -193,55 +124,73 @@
         }
     }
 }">
-    <div class="state-panel" x-show="state">
-        <div class="state-title">Thermostat State</div>
+    <div class="panel" x-show="!stateLoaded">Loading Thermostat State...</div>
+    <div class="panel" x-show="stateLoaded">
+        <div class="panel-title">Thermostat State</div>
+        <!-- Current and target temperatures -->
         <div class="state-row">
             <div class="state-field"><span class="state-label">Current Temp:</span> <span class="state-value" x-text="state?.temp ?? 'N/A'"></span></div>
             <div class="state-field"><span class="state-label">Target Heat:</span> <span class="state-value" x-text="state?.t_heat ?? 'N/A'"></span></div>
         </div>
+        <!-- Thermostat time and its in-sync status -->
         <div class="state-row">
-            <div class="state-field"><span class="state-label">Thermostat Mode:</span> <span class="state-value" x-text="state?.tmode ?? 'N/A'"></span></div>
-            <div class="state-field"><span class="state-label">Fan Mode:</span> <span class="state-value" x-text="state?.fmode ?? 'N/A'"></span></div>
+            <div class="state-field"><span class="state-label">Time (day hour:min): </span> 
+                <span class="state-value" :class="getTimeDiffClass()" x-text="state?.time ? state.time.day + ' ' + String(state.time.hour).padStart(2, '0') + ':' + String(state.time.minute).padStart(2, '0') : 'N/A'"></span>
+                <span class="state-value" x-text="state?.time_status ?? 'N/A'"></span>
+            </div>
+            <div class="state-field" x-show="getThermostatToServerTimeDiff > 1">
+                <span class="state-label">Server Time (day hour:min):</span> 
+                <span class="state-value" x-text="state?.server_time ? state.server_time.day + ' ' + String(state.server_time.hour).padStart(2, '0') + ':' + String(state.server_time.minute).padStart(2, '0') : 'N/A'"></span>
+            </div>
         </div>
+        <!-- Toggle button for other status fields -->
         <div class="state-row">
-            <div class="state-field"><span class="state-label">Override:</span> <span class="state-value" x-text="state?.override ?? 'N/A'"></span></div>
-            <div class="state-field"><span class="state-label">Hold:</span> <span class="state-value" x-text="state?.hold ?? 'N/A'"></span></div>
+            <button class="toggle-link" @click="showOtherFields = !showOtherFields" x-text="showOtherFields ? '▼ Hide' : '▶ Show Other State Fields'"></button>
         </div>
-        <div class="state-row">
-            <div class="state-field"><span class="state-label">Thermostat State:</span> <span class="state-value" x-text="state?.tstate ?? 'N/A'"></span></div>
-            <div class="state-field"><span class="state-label">Fan State:</span> <span class="state-value" x-text="state?.fstate ?? 'N/A'"></span></div>
-        </div>
-        <div class="state-row">
-            <div class="state-field"><span class="state-label">Type Post:</span> <span class="state-value" x-text="state?.t_type_post ?? 'N/A'"></span></div>
-            <div class="state-field"><span class="state-label">Time (day hour:min):</span> <span class="state-value" :class="getTimeDiffClass()" x-text="state?.time ? state.time.day + ' ' + String(state.time.hour).padStart(2, '0') + ':' + String(state.time.minute).padStart(2, '0') : 'N/A'"></span></div>
-            <div class="state-field"><span class="state-label">Server Time (day hour:min):</span> <span class="state-value" x-text="state?.server_time ? state.server_time.day + ' ' + String(state.server_time.hour).padStart(2, '0') + ':' + String(state.server_time.minute).padStart(2, '0') : 'N/A'"></span></div>
-        </div>
-        <div class="state-row">
-            <div class="state-field"><span class="state-label">Time Status:</span> <span class="state-value" x-text="state?.time_status ?? 'N/A'"></span></div>
+        <!-- Other status fields of the thermostat, not important for now -->
+        <div class="panel" x-show="showOtherFields">
+            <div class="state-row">
+                <div class="state-field"><span class="state-label">Thermostat Mode:</span> <span class="state-value" x-text="state?.tmode ?? 'N/A'"></span></div>
+                <div class="state-field"><span class="state-label">Fan Mode:</span> <span class="state-value" x-text="state?.fmode ?? 'N/A'"></span></div>
+            </div>
+            <div class="state-row">
+                <div class="state-field"><span class="state-label">Override:</span> <span class="state-value" x-text="state?.override ?? 'N/A'"></span></div>
+                <div class="state-field"><span class="state-label">Hold:</span> <span class="state-value" x-text="state?.hold ?? 'N/A'"></span></div>
+            </div>
+            <div class="state-row">
+                <div class="state-field"><span class="state-label">Thermostat State:</span> <span class="state-value" x-text="state?.tstate ?? 'N/A'"></span></div>
+                <div class="state-field"><span class="state-label">Fan State:</span> <span class="state-value" x-text="state?.fstate ?? 'N/A'"></span></div>
+                <div class="state-field"><span class="state-label">Type Post:</span> <span class="state-value" x-text="state?.t_type_post ?? 'N/A'"></span></div>
+            </div>
         </div>
     </div>
-    <template x-for="(array, key) in days" :key="key">
-        <div class="day-row">
-            <span class="day-label" x-text="key"></span>
-            <template x-for="(timeSlot, index) in array" :key="timeSlot.time">
-                <span class="time-slot">
-                    <div class="input-wrapper">
-                        <input type="time" x-model="timeSlot.time">
-                        <template x-if="hasChanged(key, index, 'time')">
-                            <span class="diff" x-text="'was: ' + getOriginalValue(key, index, 'time')"></span>
-                        </template>
-                    </div>
-                    <div class="input-wrapper">
-                        <input type="number" class="temp" x-model="timeSlot.temp">
-                        <template x-if="hasChanged(key, index, 'temp')">
-                            <span class="diff" x-text="'was: ' + getOriginalValue(key, index, 'temp')"></span>
-                        </template>
-                    </div>
-                </span>
-            </template>
-        </div>
-    </template>
-    <button class="submit-button" @click="submitSchedule()">Submit Schedule</button>
+
+    <div class="panel" x-show="!scheduleLoaded">Loading Thermostat Schedule...</div>
+    <div class="panel" x-show="scheduleLoaded">
+        <div class="panel-title">Thermostat Schedule</div>
+        <template x-for="(array, key) in days" :key="key">
+            <div class="day-row">
+                <span class="day-label" x-text="key"></span>
+                <template x-for="(timeSlot, index) in array" :key="timeSlot.time">
+                    <span class="time-slot">
+                        <div class="input-wrapper">
+                            <input type="time" x-model="timeSlot.time">
+                            <template x-if="hasChanged(key, index, 'time')">
+                                <span class="diff" x-text="'was: ' + getOriginalValue(key, index, 'time')"></span>
+                            </template>
+                        </div>
+                        <div class="input-wrapper">
+                            <input type="number" class="temp" x-model="timeSlot.temp">
+                            <template x-if="hasChanged(key, index, 'temp')">
+                                <span class="diff" x-text="'was: ' + getOriginalValue(key, index, 'temp')"></span>
+                            </template>
+                        </div>
+                    </span>
+                </template>
+            </div>
+        </template>
+        <button class="submit-button" @click="submitSchedule()">Submit Schedule</button>
+    </div>
 </div>
 </body>
 </html>

@@ -18,6 +18,9 @@ FROM python:3.12-alpine
 
 WORKDIR /app
 
+# Set timezone to EST
+ENV TZ=America/New_York
+
 # Copy only the compiled site-packages from the builder
 COPY --from=builder /install /usr/local
 

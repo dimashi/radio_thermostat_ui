@@ -2,6 +2,9 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# Set timezone to EST
+ENV TZ=America/New_York
+
 # Copy all artifacts and requirements from build/.dist folder
 COPY build/.dist/ .
 

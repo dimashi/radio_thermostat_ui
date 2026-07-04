@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from contextlib import asynccontextmanager
 import asyncio
@@ -43,6 +44,8 @@ class TrafficMonitor:
         return int(min(max(self.ema_interval * 60, 30), 3600))
 
 monitor = TrafficMonitor()
+
+app.mount("/css", StaticFiles(directory=BASE_DIR / "client" / "css"), name="css")
 
 @app.middleware("http")
 async def traffic_middleware(request: Request, call_next):

@@ -25,7 +25,8 @@ class DependencyAnalyzer:
         self.html_files: Set[Path] = set()
         self.local_modules: Set[str] = set()
         self.external_imports: Set[str] = set()
-        self.processed_modules: Set[str] = set()
+        self.processed_modules: Set[Path] = set()
+        self.missing_references: List[tuple[Path, str]] = []
 
     def find_local_python_files(self):
         """Find all Python files in server directory."""
@@ -102,7 +103,13 @@ class DependencyAnalyzer:
                 
                 # Try to resolve the path
                 resolved_path = self._resolve_path_argument(arg, content, file_path)
-                if resolved_path and resolved_path.exists() and resolved_path.suffix in ['.html', '.htm']:
+                if not resolved_path:
+                    print(f"Warning: FileResponse reference in {file_path} could not be resolved: {arg}")
+                    self.missing_references.append((file_path, arg))
+                elif not resolved_path.exists():
+                    print(f"Warning: FileResponse reference in {file_path} points to missing file: {resolved_path}")
+                    self.missing_references.append((file_path, arg))
+                elif resolved_path.suffix in ['.html', '.htm', '.css', '.js']:
                     self.html_files.add(resolved_path)
         except Exception as e:
             print(f"Warning: Could not parse {file_path}: {e}")
@@ -125,7 +132,28 @@ class DependencyAnalyzer:
             if resolved.exists():
                 return resolved
             return None
-        
+
+        # Case 1b: BASE_DIR / "path/to/file.html"
+        base_dir_match = re.match(r'^BASE_DIR\s*/\s*["\']([^"\']+)["\']$', arg)
+        if base_dir_match:
+            path_str = base_dir_match.group(1)
+            resolved = (self.root_path / path_str).resolve()
+            if resolved.exists():
+                return resolved
+            return None
+
+        # Case 1c: Path(__file__).parent(?:\.parent)* / "path/to/file.html"
+        path_parent_match = re.match(
+            r'^Path\(__file__\)\.parent(?:\.parent)*\s*/\s*["\']([^"\']+)["\']$',
+            arg,
+        )
+        if path_parent_match:
+            path_str = path_parent_match.group(1)
+            resolved = (file_path.parent / path_str).resolve()
+            if resolved.exists():
+                return resolved
+            return None
+
         # Case 2: Variable reference - try to find its definition
         var_match = re.match(r'^([a-zA-Z_][a-zA-Z0-9_]*)$', arg)
         if var_match:
@@ -137,7 +165,7 @@ class DependencyAnalyzer:
                 var_value = var_match_in_content.group(1).strip()
                 # Recursively resolve the variable's value
                 return self._resolve_path_argument(var_value, file_content, file_path)
-        
+
         return None
 
     def _scan_html_references(self):
@@ -267,6 +295,12 @@ class DependencyAnalyzer:
         self.analyze_python_imports()
         self.find_html_files()
         
+        if self.missing_references:
+            print("\n[!] Build failed: unresolved FileResponse references detected.")
+            for file_path, arg in self.missing_references:
+                print(f"  - {file_path.relative_to(self.root_path)}: {arg}")
+            sys.exit(1)
+
         self.print_analysis()
         
         # Generate requirements - read from project root
