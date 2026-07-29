@@ -45,7 +45,9 @@ class TrafficMonitor:
 
 monitor = TrafficMonitor()
 
+# Serve static assets: CSS and JS directories
 app.mount("/css", StaticFiles(directory=BASE_DIR / "client" / "css"), name="css")
+app.mount("/js", StaticFiles(directory=BASE_DIR / "client" / "js"), name="js")
 
 @app.middleware("http")
 async def traffic_middleware(request: Request, call_next):

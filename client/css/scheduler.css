@@ -1,125 +1,153 @@
-.day-row {
-    display: flex;
-    align-items: top;
-    border-top: 1px solid #ccc;
-    padding-bottom: 1ch;
+/* ==========================================================================
+   1. DESIGN TOKENS (Variables: Manage colors and themes in one place)
+   ========================================================================== */
+:root {
+  --bg-main: #f5f7fa;
+  --bg-panel: #ffffff;
+  --border-color: #e2e8f0;
+  
+  --text-main: #1a202c;
+  --text-muted: #4a5568;
+  --accent-color: #0066cc;
+  --diff-color: #e53e3e;
+  
+  --sync-green: #28a745;
+  --sync-yellow: #ffc107;
+  --sync-red: #dc3545;
 }
 
-.day-label {
-    display: inline-block;
-    width: 5ch;
-    text-align: left;
+/* ==========================================================================
+   2. THE CASCADE (Global styles that child elements automatically inherit)
+   ========================================================================== */
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  color: var(--text-main);
+  background-color: var(--bg-main);
+  line-height: 1.5;
+  margin: 0;
+  padding: 2rem;
 }
 
-.time-slot {
-    display: inline-flex;
-    width: 21ch;
-    gap: 4px;
-}
-
-.temp {          
-    width: 6ch;
-}
-
-.diff {
-    font-size: 0.75em;
-    color: red;
-    display: block;
-}
-
-.input-wrapper {
-    display: flex;
-    flex-direction: column;
-}
-
-.submit-button {
-    margin-top: 20px;
-    padding: 10px 20px;
-    font-size: 16px;
-    cursor: pointer;
-}
-
-.toggle-link {
-    margin-top: 10px;
-    background: none;
-    border: none;
-    color: #0066cc;
-    cursor: pointer;
-    font-size: 14px;
-    padding: 0;
-    text-decoration: none;
-    font-family: inherit;
-}
-
-.toggle-link:hover {
-    text-decoration: underline;
+/* ==========================================================================
+   3. LAYOUT STRUCTURE (Targeting semantic containers directly)
+   ========================================================================== */
+main {
+  max-width: 800px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem; /* Automatically pushes panels apart without margin hacking */
 }
 
 .panel {
-    border: 1px solid #ddd;
-    padding: 15px;
-    margin-bottom: 20px;
-    background-color: #f9f9f9;
-    border-radius: 4px;
-    display: block;
-    width: fit-content;
-    max-width: 100%;
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1.5rem;
 }
 
 .panel-title {
-    font-weight: bold;
-    margin-bottom: 10px;
-    font-size: 18px;
+  font-size: 1.25rem;
+  margin-top: 0;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 0.5rem;
 }
 
+/* ==========================================================================
+   4. THERMOSTAT STATE DISPLAY (Using Description List semantics)
+   ========================================================================== */
 .state-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 8px;
-    width: fit-content;
-    align-items: start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  margin: 0 0 1rem 0; /* Clears default browser <dl> margins */
 }
 
-.state-field {
-    display: inline-flex;
-    align-items: center;
-    padding: 5px;
-    background-color: #fff;
-    border: 1px solid #eee;
-    border-radius: 2px;
-    width: fit-content;
-    white-space: nowrap;
+/* dt (labels) and dd (values) styled together cleanly via Flexbox */
+.state-row dt {
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
-.state-label {
-    font-weight: 600;
-    color: #333;
-    margin-right: 0.35rem;
+.state-row dd {
+  margin: 0; /* Strips default browser indentation */
+  margin-inline-end: 2rem; /* Modern logical property instead of margin-right */
 }
 
-.state-value {
-    color: #666;
-    font-family: monospace;
+/* ==========================================================================
+   5. SCHEDULER SYSTEM (Using list structures)
+   ========================================================================== */
+.schedule-list {
+  list-style: none; /* Removes default bullet points */
+  padding: 0;
+  margin: 0 0 1.5rem 0;
 }
 
-.time-sync-green {
-    background-color: #d4edda;
-    color: #155724;
-    padding: 3px 6px;
-    border-radius: 3px;
+.day-row {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border-color);
 }
 
-.time-sync-yellow {
-    background-color: #fff3cd;
-    color: #856404;
-    padding: 3px 6px;
-    border-radius: 3px;
+.day-label {
+  min-width: 60px; /* Ensures text columns line up beautifully */
+  display: inline-block;
 }
 
-.time-sync-red {
-    background-color: #f8d7da;
-    color: #721c24;
-    padding: 3px 6px;
-    border-radius: 3px;
+.time-slot {
+  display: flex;
+  gap: 1rem;
+  margin-inline-start: auto; /* Flexbox trick: Pushes inputs perfectly to the right side */
 }
+
+.input-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.temp {
+  width: 4ch;
+}
+
+/* Small tag used for "was: XX" diff context elements */
+.diff {
+  font-size: 0.75rem;
+  color: var(--diff-color);
+  position: absolute;
+  top: 100%; /* Positions text safely right underneath the input box */
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   6. COMPONENT ACTIONS (Buttons and State indicators)
+   ========================================================================== */
+button {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.submit-button {
+  background-color: var(--accent-color);
+  color: #ffffff;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+/* The button stylized to look like a link */
+.toggle-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent-color);
+  text-decoration: underline;
+}
+
+/* Active indicator context badges */
+.time-sync-green { color: var(--sync-green); font-weight: bold; }
+.time-sync-yellow { color: var(--sync-yellow); font-weight: bold; }
+.time-sync-red { color: var(--sync-red); font-weight: bold; }

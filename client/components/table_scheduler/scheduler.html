@@ -5,192 +5,87 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Table Scheduler</title>
     <link rel="stylesheet" href="../../css/scheduler.css">
+    <script defer src="../../js/scheduler.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body>
-<div x-data="{
-    days: {},
-    originalDays: {},
-    state: null,
-    showOtherFields: false,
-    scheduleLoaded: false,
-    stateLoaded: false,
-    // currentTemp: null,
-
-    defaultSlot: {'time': '00:00', 'temp': '0'},
-    defaultSlots: [this.defaultSlot, this.defaultSlot, this.defaultSlot, this.defaultSlot],
-    defaultDays: {
-        'Mon': this.defaultSlots,
-        'Tue': this.defaultSlots,
-        'Wed': this.defaultSlots,
-        'Thu': this.defaultSlots,
-        'Fri': this.defaultSlots,
-        'Sat': this.defaultSlots,
-        'Sun': this.defaultSlots,
-    },
+<main x-data="scheduler()">
+    <div role="status" class="panel" x-show="!stateLoaded">Loading Thermostat State...</div>
     
-    async init() {
-        // Fetch schedule
-        const schedulePromise = this.loadSchedule();
+    <section class="panel" x-show="stateLoaded">
+        <h2 class="panel-title">Thermostat State</h2>
         
-        // Fetch current state
-        await this.loadState();
-        await schedulePromise; // Ensure schedule is loaded after state
-    },
-
-    async loadSchedule() {
-        try {
-            const response = await fetch('/api/schedule', {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            if (response.ok) {
-                this.days = await response.json();
-                this.originalDays = JSON.parse(JSON.stringify(this.days)); // Deep copy for change tracking
-            } else {
-                this.days = {};
-            }
-        } catch (error) {
-            console.error('Error loading schedule:', error);
-            this.days = {};
-        } finally {
-            this.scheduleLoaded = true;
-        }
-    },
-    
-    async loadState() {
-        try {
-            const response = await fetch('/api/state', {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            if (response.ok) {
-                this.state = await response.json();
-                // this.currentTemp = this.state.temp;
-            } else {
-                this.state = null;
-            }
-        } catch (error) {
-            console.error('Error loading state:', error);
-            this.state = null;
-        } finally {
-            this.stateLoaded = true;
-        }
-    },
-    getOriginalValue(day, index, field) {
-        return this.originalDays[day]?.[index]?.[field] || '';
-    },
-    hasChanged(day, index, field) {
-        const current = this.days[day]?.[index]?.[field];
-        const original = this.originalDays[day]?.[index]?.[field];
-        return current != original;
-    },
-    getThermostatToServerTimeDiff() {
-        if (!this.state?.time || !this.state?.server_time) {
-            return '';
-        }
+        <dl class="state-row">
+            <dt class="state-label">Current Temp:</dt> 
+            <dd class="state-value" x-text="state?.temp ?? 'N/A'"></dd>
+            
+            <dt class="state-label">Target Heat:</dt> 
+            <dd class="state-value" x-text="state?.t_heat ?? 'N/A'"></dd>
+        </dl>
         
-        // Convert both times to minutes since midnight
-        const thermostatMinutes = this.state.time.hour * 60 + this.state.time.minute;
-        const serverMinutes = this.state.server_time.hour * 60 + this.state.server_time.minute;
+        <dl class="state-row">
+            <dt class="state-label">Time (day hour:min):</dt>
+            <dd class="state-value">
+                <span :class="getTimeDiffClass()" x-text="state?.time ? state.time.day + ' ' + String(state.time.hour).padStart(2, '0') + ':' + String(state.time.minute).padStart(2, '0') : 'N/A'"></span>
+                <span x-text="state?.time_status ?? 'N/A'"></span>
+            </dd>
+            
+            <dt class="state-label" x-show="getThermostatToServerTimeDiff > 1">Server Time (day hour:min):</dt>
+            <dd class="state-value" x-show="getThermostatToServerTimeDiff > 1" x-text="state?.server_time ? state.server_time.day + ' ' + String(state.server_time.hour).padStart(2, '0') + ':' + String(state.server_time.minute).padStart(2, '0') : 'N/A'"></dd>
+        </dl>
         
-        // Calculate absolute difference
-        let diff = Math.abs(thermostatMinutes - serverMinutes);
-        
-        // Handle day wrap-around (if diff > 12 hours, it's probably crossing midnight)
-        if (diff > 12 * 60) {
-            diff = 24 * 60 - diff;
-        }
-        return diff;
-    },
-    getTimeDiffClass() {
-        const diff = this.getThermostatToServerTimeDiff();
-        if (diff < 1) return 'time-sync-green';
-        if (diff < 15) return 'time-sync-yellow';
-        return 'time-sync-red';
-    },
-    async submitSchedule() {
-        const response = await fetch('/api/schedule', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(this.days)
-        });
-        
-        if (response.ok) {
-            this.originalDays = JSON.parse(JSON.stringify(this.days)); // Clear diffs
-            alert('Schedule saved!');
-        } else {
-            alert('Error: ' + response.statusText);
-        }
-    }
-}">
-    <div class="panel" x-show="!stateLoaded">Loading Thermostat State...</div>
-    <div class="panel" x-show="stateLoaded">
-        <div class="panel-title">Thermostat State</div>
-        <!-- Current and target temperatures -->
-        <div class="state-row">
-            <div class="state-field"><span class="state-label">Current Temp:</span> <span class="state-value" x-text="state?.temp ?? 'N/A'"></span></div>
-            <div class="state-field"><span class="state-label">Target Heat:</span> <span class="state-value" x-text="state?.t_heat ?? 'N/A'"></span></div>
-        </div>
-        <!-- Thermostat time and its in-sync status -->
-        <div class="state-row">
-            <div class="state-field"><span class="state-label">Time (day hour:min): </span> 
-                <span class="state-value" :class="getTimeDiffClass()" x-text="state?.time ? state.time.day + ' ' + String(state.time.hour).padStart(2, '0') + ':' + String(state.time.minute).padStart(2, '0') : 'N/A'"></span>
-                <span class="state-value" x-text="state?.time_status ?? 'N/A'"></span>
-            </div>
-            <div class="state-field" x-show="getThermostatToServerTimeDiff > 1">
-                <span class="state-label">Server Time (day hour:min):</span> 
-                <span class="state-value" x-text="state?.server_time ? state.server_time.day + ' ' + String(state.server_time.hour).padStart(2, '0') + ':' + String(state.server_time.minute).padStart(2, '0') : 'N/A'"></span>
-            </div>
-        </div>
-        <!-- Toggle button for other status fields -->
         <div class="state-row">
             <button class="toggle-link" @click="showOtherFields = !showOtherFields" x-text="showOtherFields ? '▼ Hide' : '▶ Show Other State Fields'"></button>
         </div>
-        <!-- Other status fields of the thermostat, not important for now -->
-        <div class="panel" x-show="showOtherFields">
-            <div class="state-row">
-                <div class="state-field"><span class="state-label">Thermostat Mode:</span> <span class="state-value" x-text="state?.tmode ?? 'N/A'"></span></div>
-                <div class="state-field"><span class="state-label">Fan Mode:</span> <span class="state-value" x-text="state?.fmode ?? 'N/A'"></span></div>
-            </div>
-            <div class="state-row">
-                <div class="state-field"><span class="state-label">Override:</span> <span class="state-value" x-text="state?.override ?? 'N/A'"></span></div>
-                <div class="state-field"><span class="state-label">Hold:</span> <span class="state-value" x-text="state?.hold ?? 'N/A'"></span></div>
-            </div>
-            <div class="state-row">
-                <div class="state-field"><span class="state-label">Thermostat State:</span> <span class="state-value" x-text="state?.tstate ?? 'N/A'"></span></div>
-                <div class="state-field"><span class="state-label">Fan State:</span> <span class="state-value" x-text="state?.fstate ?? 'N/A'"></span></div>
-                <div class="state-field"><span class="state-label">Type Post:</span> <span class="state-value" x-text="state?.t_type_post ?? 'N/A'"></span></div>
-            </div>
+        
+        <div class="panel-nested" x-show="showOtherFields">
+            <dl class="state-row">
+                <dt class="state-label">Thermostat Mode:</dt> <dd class="state-value" x-text="state?.tmode ?? 'N/A'"></dd>
+                <dt class="state-label">Fan Mode:</dt> <dd class="state-value" x-text="state?.fmode ?? 'N/A'"></dd>
+            </dl>
+            <dl class="state-row">
+                <dt class="state-label">Override:</dt> <dd class="state-value" x-text="state?.override ?? 'N/A'"></dd>
+                <dt class="state-label">Hold:</dt> <dd class="state-value" x-text="state?.hold ?? 'N/A'"></dd>
+            </dl>
+            <dl class="state-row">
+                <dt class="state-label">Thermostat State:</dt> <dd class="state-value" x-text="state?.tstate ?? 'N/A'"></dd>
+                <dt class="state-label">Fan State:</dt> <dd class="state-value" x-text="state?.fstate ?? 'N/A'"></dd>
+                <dt class="state-label">Type Post:</dt> <dd class="state-value" x-text="state?.t_type_post ?? 'N/A'"></dd>
+            </dl>
         </div>
-    </div>
+    </section>
 
-    <div class="panel" x-show="!scheduleLoaded">Loading Thermostat Schedule...</div>
-    <div class="panel" x-show="scheduleLoaded">
-        <div class="panel-title">Thermostat Schedule</div>
-        <template x-for="(array, key) in days" :key="key">
-            <div class="day-row">
-                <span class="day-label" x-text="key"></span>
-                <template x-for="(timeSlot, index) in array" :key="timeSlot.time">
-                    <span class="time-slot">
-                        <div class="input-wrapper">
-                            <input type="time" x-model="timeSlot.time">
-                            <template x-if="hasChanged(key, index, 'time')">
-                                <span class="diff" x-text="'was: ' + getOriginalValue(key, index, 'time')"></span>
-                            </template>
-                        </div>
-                        <div class="input-wrapper">
-                            <input type="number" class="temp" x-model="timeSlot.temp">
-                            <template x-if="hasChanged(key, index, 'temp')">
-                                <span class="diff" x-text="'was: ' + getOriginalValue(key, index, 'temp')"></span>
-                            </template>
-                        </div>
-                    </span>
-                </template>
-            </div>
-        </template>
+    <div role="status" class="panel" x-show="!scheduleLoaded">Loading Thermostat Schedule...</div>
+    
+    <section class="panel" x-show="scheduleLoaded">
+        <h2 class="panel-title">Thermostat Schedule</h2>
+        
+        <ul class="schedule-list">
+            <template x-for="(array, key) in days" :key="key">
+                <li class="day-row">
+                    <strong class="day-label" x-text="key"></strong>
+                    
+                    <template x-for="(timeSlot, index) in array" :key="timeSlot.time">
+                        <span class="time-slot">
+                            <div class="input-wrapper">
+                                <input type="time" x-model="timeSlot.time" aria-label="Time slot time">
+                                <template x-if="hasChanged(key, index, 'time')">
+                                    <small class="diff" x-text="'was: ' + getOriginalValue(key, index, 'time')"></small>
+                                </template>
+                            </div>
+                            <div class="input-wrapper">
+                                <input type="number" class="temp" x-model="timeSlot.temp" aria-label="Time slot temperature">
+                                <template x-if="hasChanged(key, index, 'temp')">
+                                    <small class="diff" x-text="'was: ' + getOriginalValue(key, index, 'temp')"></small>
+                                </template>
+                            </div>
+                        </span>
+                    </template>
+                </li>
+            </template>
+        </ul>
         <button class="submit-button" @click="submitSchedule()">Submit Schedule</button>
-    </div>
-</div>
+    </section>
+</main>
 </body>
 </html>
