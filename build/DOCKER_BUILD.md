@@ -133,6 +133,10 @@ The script will automatically detect and include new dependencies.
 
 ## Image Size Reference
 
+```bash
+docker images
+```
+
 Example output sizes:
 - Base image (python:3.12-slim): ~125MB
 - With minimal requirements: ~75MB
