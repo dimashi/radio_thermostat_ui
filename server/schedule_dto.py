@@ -1,17 +1,17 @@
-from pydantic import BaseModel
-from typing import List
+import pydantic
+
 
 # Pydantic model for schedule data
-class TimeSlot(BaseModel):
+class TimeSlot(pydantic.BaseModel):
     time: str
     temp: float
 
 
-class ScheduleData(BaseModel):
-    Mon: List[TimeSlot] = []
-    Tue: List[TimeSlot] = []
-    Wed: List[TimeSlot] = []
-    Thu: List[TimeSlot] = []
-    Fri: List[TimeSlot] = []
-    Sat: List[TimeSlot] = []
-    Sun: List[TimeSlot] = []
+class ScheduleData(pydantic.BaseModel):
+    Mon: list[TimeSlot] = []
+    Tue: list[TimeSlot] = []
+    Wed: list[TimeSlot] = []
+    Thu: list[TimeSlot] = []
+    Fri: list[TimeSlot] = []
+    Sat: list[TimeSlot] = []
+    Sun: list[TimeSlot] = []

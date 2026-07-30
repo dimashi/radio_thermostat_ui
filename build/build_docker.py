@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Docker packaging script that:
 1. Analyzes Python imports starting from controller.py
@@ -7,13 +6,10 @@ Docker packaging script that:
 4. Creates .dist folder with only necessary files for Docker build
 """
 
-import os
-import re
 import ast
+import re
 import sys
 from pathlib import Path
-from typing import Set, Dict, List
-from collections import defaultdict
 
 
 class DependencyAnalyzer:
@@ -21,12 +17,12 @@ class DependencyAnalyzer:
         self.root_path = root_path
         self.server_path = root_path / "server"
         self.client_path = root_path / "client"
-        self.python_files: Set[Path] = set()
-        self.html_files: Set[Path] = set()
-        self.local_modules: Set[str] = set()
-        self.external_imports: Set[str] = set()
-        self.processed_modules: Set[Path] = set()
-        self.missing_references: List[tuple[Path, str]] = []
+        self.python_files: set[Path] = set()
+        self.html_files: set[Path] = set()
+        self.local_modules: set[str] = set()
+        self.external_imports: set[str] = set()
+        self.processed_modules: set[Path] = set()
+        self.missing_references: list[tuple[Path, str]] = []
 
     def find_local_python_files(self):
         """Find all Python files in server directory."""
@@ -36,7 +32,7 @@ class DependencyAnalyzer:
                 # Extract module name
                 self.local_modules.add(py_file.stem)
 
-    def extract_imports(self, file_path: Path) -> Set[str]:
+    def extract_imports(self, file_path: Path) -> set[str]:
         """Extract top-level imports from a Python file."""
         imports = set()
         try:
@@ -48,11 +44,12 @@ class DependencyAnalyzer:
                     for alias in node.names:
                         module_name = alias.name.split(".")[0]
                         imports.add(module_name)
-                elif isinstance(node, ast.ImportFrom):
-                    if node.module:
-                        module_name = node.module.split(".")[0]
-                        imports.add(module_name)
-        except Exception as e:
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    module_name = node.module.split(".")[0]
+                    imports.add(module_name)
+        except (OSError, SyntaxError) as e:
+            # Only handle file I/O and parsing errors here; allow unexpected
+            # exceptions to propagate so they can be noticed and fixed.
             print(f"Warning: Could not parse {file_path}: {e}")
         
         return imports
@@ -111,7 +108,7 @@ class DependencyAnalyzer:
                     self.missing_references.append((file_path, arg))
                 elif resolved_path.suffix in ['.html', '.htm', '.css', '.js']:
                     self.html_files.add(resolved_path)
-        except Exception as e:
+        except (OSError, SyntaxError) as e:
             print(f"Warning: Could not parse {file_path}: {e}")
 
     def _resolve_path_argument(self, arg: str, file_content: str, file_path: Path) -> Path:
@@ -180,8 +177,7 @@ class DependencyAnalyzer:
                     for src in script_srcs:
                         if not src.startswith(('http://', 'https://', 'file://')):
                             ref_path = (html_file.parent / src).resolve()
-                            if ref_path.exists():
-                                if ref_path.suffix in ['.js', '.css']:
+                            if ref_path.exists() and ref_path.suffix in ['.js', '.css']:
                                     self.html_files.add(ref_path)
                     
                     # Find stylesheet links
@@ -189,13 +185,12 @@ class DependencyAnalyzer:
                     for href in link_hrefs:
                         if not href.startswith(('http://', 'https://', 'file://')):
                             ref_path = (html_file.parent / href).resolve()
-                            if ref_path.exists():
-                                if ref_path.suffix in ['.css', '.js']:
+                            if ref_path.exists() and ref_path.suffix in ['.css', '.js']:
                                     self.html_files.add(ref_path)
-            except Exception as e:
+            except (OSError, SyntaxError) as e:
                 print(f"Warning: Could not parse {html_file}: {e}")
 
-    def get_used_requirements(self, requirements_file: Path) -> List[str]:
+    def get_used_requirements(self, requirements_file: Path) -> list[str]:
         """Filter requirements.txt to only include used packages."""
         with open(requirements_file, "r") as f:
             all_requirements = [line.strip() for line in f if line.strip() and not line.startswith("#")]
@@ -233,7 +228,7 @@ class DependencyAnalyzer:
         print(f"[+] Generated {output_path}")
         return artifacts
 
-    def copy_to_dist(self, artifacts: List[str], used_requirements: List[str]):
+    def copy_to_dist(self, artifacts: list[str], used_requirements: list[str]):
         """Copy artifacts and requirements to build/.dist folder for Docker build."""
         dist_dir = self.root_path / "build" / ".dist"
         
@@ -261,7 +256,7 @@ class DependencyAnalyzer:
         
         print(f"[+] Created {dist_dir} with artifacts and requirements")
 
-    def generate_requirements_minimal(self, output_path: Path, used_requirements: List[str]):
+    def generate_requirements_minimal(self, output_path: Path, used_requirements: list[str]):
         """Generate minimal requirements.txt."""
         with open(output_path, "w") as f:
             f.write("\n".join(used_requirements) + "\n")

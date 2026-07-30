@@ -1,8 +1,9 @@
-import httpx
+import asyncio
 import json
 import logging
 import time
-import asyncio
+
+import httpx
 from fastapi import HTTPException
 from schedule_dto import ScheduleData, TimeSlot
 from state_dto import StateDTO, TimeInfo
@@ -186,7 +187,7 @@ class Server:
                 task = asyncio.create_task(self.set_time(server_time_info))
                 # Add error callback to log failures
                 task.add_done_callback(
-                    lambda t: logger.warning(f"Failed to set thermostat time") if t.exception() else None
+                    lambda t: logger.warning("Failed to set thermostat time") if t.exception() else None
                 )
             
             return StateDTO(**raw_data)
