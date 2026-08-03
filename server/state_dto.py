@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 class TimeInfo(BaseModel):
     """Time information nested within thermostat state"""
-    day: int
+    day: str
     hour: int
     minute: int
 

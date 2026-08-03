@@ -3,10 +3,9 @@ import time
 from cashews import cache
 from cashews.key import get_cache_key, get_cache_key_template
 from fastapi import APIRouter
-from schedule_dto import ScheduleData
 
-# from state_dto import StateDTO, TimeInfo
-from server import Server
+from server.schedule_dto import ScheduleData
+from server.server import Server
 
 # Import your models (TimeSlot, ScheduleData, etc.) here
 

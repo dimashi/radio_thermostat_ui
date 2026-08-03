@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-from api_routes import get_monitor
-from api_routes import router as api_router
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-from web_routes import BASE_DIR
-from web_routes import router as web_router
+
+from server.api_routes import get_monitor
+from server.api_routes import router as api_router
+from server.web_routes import BASE_DIR
+from server.web_routes import router as web_router
 
 app = FastAPI(title="Radio Thermostat Scheduler API")
 
