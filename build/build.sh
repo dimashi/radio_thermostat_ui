@@ -15,7 +15,7 @@ echo "======================================"
 echo ""
 echo "🔍 Step 1: Analyzing dependencies..."
 cd "$ROOT_DIR"
-python build/build_docker.py
+python tools/copy_app_dependencies.py
 
 # Step 2: Build Docker image
 echo ""
