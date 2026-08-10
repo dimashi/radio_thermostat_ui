@@ -1,19 +1,11 @@
 import asyncio
 import json
 import logging
-import sys
 import time
-from pathlib import Path
 
-SERVER_DIR = Path(__file__).resolve().parent
-ROOT_DIR = SERVER_DIR.parent
-for path in (str(ROOT_DIR), str(SERVER_DIR)):
-    if path not in sys.path:
-        sys.path.insert(0, path)
-
-from server.schedule_dto import ScheduleData, TimeSlot
-from server.state_dto import StateDTO, TimeInfo
-from thermostat.thermostat_provider import ThermostatProvider
+from thermostat.radio_thermo_api_client import RadioThermoApiClient
+from .schedule_dto import ScheduleData, TimeSlot
+from .state_dto import StateDTO, TimeInfo
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -25,16 +17,16 @@ logger = logging.getLogger(__name__)
 
 class Server:
     def __init__(self):
-        self.thermostat = ThermostatProvider()
+        self.thermostat = RadioThermoApiClient()
 
     async def get_thermostat_schedule(self):
     
-        raw_data = await self.thermostat.get_thermostat_schedule()
+        program = await self.thermostat.get_heating_program()
 
         # Initialize the result dictionary
         schedule_dict = {day: [] for day in DAY_MAP.values()}
 
-        for day_index, values in raw_data.items():
+        for day_index, values in program.root.items():
             day_name = DAY_MAP.get(day_index)
             if not day_name:
                 continue
@@ -128,11 +120,11 @@ class Server:
         return StateDTO(**raw_data)
 
 # --- Helper Logic ---
-def minutes_to_hhmm(total_minutes: int) -> str:
+def minutes_to_hhmm(total_minutes: float) -> str:
     """Converts minutes since midnight to 24-hour HH:MM format."""
     hours = total_minutes // 60
     minutes = total_minutes % 60
-    return f"{hours:02d}:{minutes:02d}"
+    return f"{hours:02.0f}:{minutes:02.0f}"
 
 def hhmm_to_minutes(time_str: str) -> int:
     """Converts 24-hour HH:MM format to minutes since midnight."""
