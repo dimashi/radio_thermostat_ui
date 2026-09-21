@@ -7,3 +7,7 @@ cashews>=7.4.4
 
 # build support:
 ruff>=0.16
+
+# tests
+pytest>=9.1.1
+pytest-asyncio>=1.4.0

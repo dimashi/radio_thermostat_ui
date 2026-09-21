@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from config.settings import settings
 
 from .radio_thermo_program_dto import RadioThermoProgramDto
+from .radio_thermo_state_dto import RadioThermoStateDto
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -68,22 +69,11 @@ class RadioThermoApiClient:
     async def get_state(self):
         """Fetch the current thermostat state and return as StateDTO."""
         async with httpx.AsyncClient(timeout=10.0) as client:
-            try:
-                response = await client.get(settings.thermostat_url + "tstat")
-                response.raise_for_status()
-                raw_data = response.json()
-                logger.info(f"Received thermostat state: {json.dumps(raw_data, indent=2)}")
-                return raw_data
-            except httpx.HTTPStatusError as exc:
-                tstat_code = exc.response.status_code
-                raise HTTPException(
-                    status_code=502,
-                    detail=f"Thermostat returned error code: {tstat_code}. Message: {exc.response.text}"
-                )
-            except httpx.TimeoutException:
-                raise HTTPException(status_code=504, detail="Thermostat timed out.")
-            except httpx.RequestError as exc:
-                raise HTTPException(status_code=502, detail=f"Network error contacting thermostat: {exc}")            
-        
+            response = await client.get(settings.thermostat_url + "tstat")
+            response.raise_for_status()
+            raw_data = response.json()
+            logger.info(f"Received thermostat state: {json.dumps(raw_data, indent=2)}")
+            return RadioThermoStateDto(raw_data)
+    
 
             
