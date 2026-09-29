@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -80,11 +80,28 @@ async def test_set_time():
     
     # Assert
     assert result == {"success": True}
-    server.thermostat.set_time.assert_called_once_with({
-        "day": 0,
-        "hour": 14,
-        "minute": 30
-    })
+    server.thermostat.set_time.assert_awaited_once_with(
+        RadioThermoTimeInfoDto(day=0, hour=14, minute=30)
+    )
+
+
+@pytest.mark.asyncio
+async def test_set_current_time():
+    server = Server()
+    fixed_now = datetime(2026, 9, 21, 14, 30, tzinfo=timezone.utc)
+    local_now = fixed_now.astimezone()
+    server.thermostat.set_time = AsyncMock(return_value={"success": True})
+
+    with patch("server.server.datetime") as mock_datetime:
+        mock_datetime.now.return_value = fixed_now
+        result = await server.set_current_time()
+
+    assert result == {"success": True}
+    server.thermostat.set_time.assert_awaited_once_with(
+        RadioThermoTimeInfoDto(
+            day=local_now.weekday(), hour=local_now.hour, minute=local_now.minute
+        )
+    )
 
 
 @pytest.mark.asyncio

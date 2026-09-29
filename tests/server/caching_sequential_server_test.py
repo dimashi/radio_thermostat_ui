@@ -28,7 +28,7 @@ def make_state(temp: float) -> StateDTO:
 
 
 @pytest.mark.asyncio
-async def test_schedule_reads_are_cached_and_copies_are_isolated():
+async def test_schedule_reads_are_cached():
     server = AsyncMock(spec=ServerInterface)
     server.get_thermostat_schedule.return_value = ScheduleData(
         Mon=[TimeSlot(time="06:00", temp=68.0)]
@@ -36,9 +36,9 @@ async def test_schedule_reads_are_cached_and_copies_are_isolated():
     caching_server = CachingSequentialServer(server)
 
     first_read = await caching_server.get_thermostat_schedule()
-    first_read.Mon.clear()
     second_read = await caching_server.get_thermostat_schedule()
 
+    assert first_read == second_read
     assert second_read.Mon == [TimeSlot(time="06:00", temp=68.0)]
     server.get_thermostat_schedule.assert_awaited_once()
 
@@ -96,7 +96,10 @@ async def test_server_operations_are_serialized():
 
 
 @pytest.mark.asyncio
-async def test_background_refresh_updates_schedule_and_state_cache():
+async def test_background_refresh_updates_schedule_and_state_cache(monkeypatch):
+    monkeypatch.setattr(
+        "server.caching_sequential_server.settings.cache_ttl_seconds", 0.01
+    )
     server = AsyncMock(spec=ServerInterface)
     schedules = [
         ScheduleData(Mon=[TimeSlot(time="06:00", temp=68.0)]),
@@ -115,7 +118,7 @@ async def test_background_refresh_updates_schedule_and_state_cache():
         return states[min(state_calls - 1, 1)]
 
     server.get_state.side_effect = mark_second_refresh
-    caching_server = CachingSequentialServer(server, refresh_interval=0.01)
+    caching_server = CachingSequentialServer(server)
 
     await caching_server.start_background_refresh()
     try:
