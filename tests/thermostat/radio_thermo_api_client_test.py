@@ -1,48 +1,72 @@
-import socket
-from urllib.parse import urlparse
+from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 
-from config.settings import settings
 from thermostat.radio_thermo_api_client import RadioThermoApiClient
 from thermostat.radio_thermo_program_dto import RadioThermoProgramDto
+from thermostat.radio_thermo_state_dto import RadioThermoTimeInfoDto
 
+# Tests for error conditions only
 
-def is_thermostat_reachable() -> bool:
-    """Helper to check if the physical thermostat IP is reachable on port 80."""
-    parsed = urlparse(settings.thermostat_url)
-    host = parsed.hostname or "127.0.0.1"
-    port = parsed.port or 80
-    
-    try:
-        with socket.create_connection((host, port), timeout=2.0):
-            return True
-    except (OSError, TimeoutError):
-        return False
-
-
-# Skip all tests in this file if the physical hardware is offline
-pytestmark = pytest.mark.skipif(
-    not is_thermostat_reachable(),
-    reason=f"Thermostat at {settings.thermostat_url} is unreachable on local network."
+@pytest.mark.parametrize(
+    ("client_method", "http_method", "url_accessor", "arguments"),
+    [
+        (
+            RadioThermoApiClient.get_heating_program,
+            "get",
+            lambda client: client.heating_program_url,
+             ()
+        ),
+        (
+            RadioThermoApiClient.update_heating_program,
+            "post",
+            lambda client: client.heating_program_url,
+            (RadioThermoProgramDto(root={}),),
+        ),
+        (
+            RadioThermoApiClient.get_state,
+            "get",  
+            lambda client: client.tstat_url,
+            ()
+        ),
+        (
+            RadioThermoApiClient.set_time,
+            "post",
+            lambda client: client.time_url,
+            (RadioThermoTimeInfoDto(day=0, hour=12, minute=0),),
+        )
+    ],
 )
-
-
+@pytest.mark.parametrize("error_type", ["http_status", "timeout", "request"])
 @pytest.mark.asyncio
-async def test_get_heating_program():
-    """Integration test against physical Radio Thermostat hardware."""
+async def test_other_api_methods_propagate_http_errors_mock(
+    client_method, http_method, url_accessor, arguments, error_type
+):
     client = RadioThermoApiClient()
-    
-    # Execute actual HTTP request to device
-    program = await client.get_heating_program()
-    
-    # Assertions on live hardware response
-    assert isinstance(program, RadioThermoProgramDto)
-    
-    # Verify thermostat returned all 7 days of the week (keys '0' through '6')
-    for day_code in range(7):
-        assert str(day_code) in program.root or day_code in program.root
-        
-    # Verify setpoints list structure (must have even number of elements: time, temp pairs)
-    day_zero_schedule = program.root.get("0") or program.root.get(0)
-    assert len(day_zero_schedule) % 2 == 0
+    request = httpx.Request(http_method.upper(), url_accessor(client))
+
+    if error_type == "http_status":
+        response = httpx.Response(
+            status_code=500, request=request, text="Internal Server Error"
+        )
+        exc = httpx.HTTPStatusError("Error", request=request, response=response)
+        expected_exception = httpx.HTTPStatusError
+    elif error_type == "timeout":
+        exc = httpx.ConnectTimeout("Connection timed out", request=request)
+        expected_exception = httpx.TimeoutException
+    else:
+        exc = httpx.RequestError("Network error", request=request)
+        expected_exception = httpx.RequestError
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__.return_value = mock_client
+    getattr(mock_client, http_method).side_effect = exc
+
+    with patch("httpx.AsyncClient", return_value=mock_client), pytest.raises(
+        expected_exception
+    ) as exc_info:
+        await client_method(client, *arguments)
+
+    if error_type == "http_status":
+        assert exc_info.value.response.status_code == 500

@@ -1,4 +1,5 @@
 import os
+
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -6,11 +7,13 @@ from pydantic_settings import (
     TomlConfigSettingsSource,
 )
 
+
 class Settings(BaseSettings):
     use_kv_store: bool = False
     thermostat_url: str = "http://thermostat-22-33-6A/"
     timeout: float = 5.0
     retry_attempts: int = 3
+    cache_ttl_seconds: int = 60
     
     model_config = SettingsConfigDict(
         toml_file="config.toml",

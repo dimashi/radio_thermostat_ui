@@ -1,0 +1,16 @@
+from typing import Any, Protocol
+
+from .schedule_dto import ScheduleData
+from .state_dto import StateDTO, TimeInfo
+
+
+class ServerInterface(Protocol):
+    async def get_thermostat_schedule(self) -> ScheduleData: ...
+
+    async def update_thermostat_schedule(self, schedule_data: ScheduleData) -> Any: ...
+
+    async def set_time(self, time_info: TimeInfo) -> Any: ...
+
+    async def set_current_time(self) -> Any: ...
+
+    async def get_state(self) -> StateDTO: ...

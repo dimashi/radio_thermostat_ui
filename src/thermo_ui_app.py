@@ -1,11 +1,25 @@
 #!/usr/bin/env python3
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 
 from server.web_routes import BASE_DIR
 from server.web_routes import router as web_router
 
-app = FastAPI(title="Radio Thermostat Scheduler API")
+
+@asynccontextmanager
+async def lifespan(_app):
+    try:
+        yield
+    finally:
+        if _api_router_loaded:
+            from server.api_routes import server
+
+            await server.stop_background_refresh()
+
+
+app = FastAPI(title="Radio Thermostat Scheduler API", lifespan=lifespan)
 
 app.router.include_router(web_router)
 
@@ -23,15 +37,12 @@ async def traffic_middleware(request: Request, call_next):
     # Only trigger when an /api request comes in for the first time
     if not _api_router_loaded and request.url.path.startswith("/api"):
         # Import the heavy module ONLY when an API route is actually called
-        from server.api_routes import router as api_router
+        from server.api_routes import server, router as api_router
         
         # Include the router into FastAPI's runtime route table
         app.include_router(api_router)
         _api_router_loaded = True
-
-    if _api_router_loaded:
-        from server.api_routes import get_monitor
-        get_monitor().record_hit() # Always recording, even on cache hits
+        await server.start_background_refresh()
 
     return await call_next(request)
 

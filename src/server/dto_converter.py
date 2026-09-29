@@ -9,7 +9,6 @@ from thermostat.radio_thermo_state_dto import (
 from .schedule_dto import ScheduleData, TimeSlot
 from .state_dto import StateDTO, TimeInfo
 
-
 DAY_MAP = {
     "0": "Mon",
     "1": "Tue",
@@ -53,20 +52,16 @@ class DtoConverter:
 
     @staticmethod
     def schedule_to_thermostat_program(schedule: ScheduleData) -> RadioThermoProgramDto:
-        program = {}
+        program = RadioThermoProgramDto(root={})
 
         for day_name, slots in schedule.model_dump().items():
-            program[REVERSE_DAY_MAP[day_name]] = []
+            pairs = [
+                (hhmm_to_minutes(slot["time"]), float(slot["temp"]))
+                for slot in slots
+            ]
+            program.set_time_temp_pairs(REVERSE_DAY_MAP[day_name], pairs)
 
-            for slot in slots:
-                program[REVERSE_DAY_MAP[day_name]].extend(
-                    [
-                        float(hhmm_to_minutes(slot["time"])),
-                        float(slot["temp"]),
-                    ]
-                )
-
-        return RadioThermoProgramDto(root=program)
+        return program
 
     @staticmethod
     def server_time_to_thermostat(time_info: TimeInfo) -> RadioThermoTimeInfoDto:
@@ -77,8 +72,17 @@ class DtoConverter:
         )
 
     @staticmethod
-    def thermostat_state_to_server(state: RadioThermoStateDto, now: datetime | None = None) -> StateDTO:
-        now = now or datetime.now()
+    def get_time_info(local_time: datetime) -> TimeInfo:
+        return TimeInfo(
+            day=DAY_MAP[str(local_time.weekday())],
+            hour=local_time.hour,
+            minute=local_time.minute,
+        )
+    
+    @staticmethod
+    def thermostat_state_to_server(state: RadioThermoStateDto, local_time: datetime | None = None) -> StateDTO:
+        if local_time is None:
+            local_time = datetime.now().astimezone()
 
         thermostat_time = TimeInfo(
             day=DAY_MAP[str(state.time.day)],
@@ -86,26 +90,10 @@ class DtoConverter:
             minute=state.time.minute,
         )
 
-        server_time = TimeInfo(
-            day=DAY_MAP[str(now.weekday())],
-            hour=now.hour,
-            minute=now.minute,
-        )
-
-        # Calculate time_status based on difference between thermostat time and server time
-        thermostat_minutes = thermostat_time.hour * 60 + thermostat_time.minute
-        server_minutes = server_time.hour * 60 + server_time.minute
-        
-        diff = abs(thermostat_minutes - server_minutes)
-        # Handle day wrap-around
-        if diff > 12 * 60:
-            diff = 24 * 60 - diff
-
-        is_in_sync = diff < 1
-        time_status = "in sync" if is_in_sync else "synchronizing time"
+        server_time = DtoConverter.get_time_info(local_time)
 
         return StateDTO(
-            temp=state.temp,
+            temp=state.temp, 
             tmode=state.tmode,
             fmode=state.fmode,
             override=state.override,
@@ -116,5 +104,22 @@ class DtoConverter:
             t_type_post=state.t_type_post,
             time=thermostat_time,
             server_time=server_time,
-            time_status=time_status,
+            time_status=DtoConverter.get_time_status(thermostat_time, server_time)
         )
+  
+    @staticmethod
+    def get_time_status(thermostat_time, server_time):
+        # Calculate time_status based on difference between thermostat time and server time
+        thermostat_minutes = DtoConverter.get_total_minutes(thermostat_time)
+        server_minutes = DtoConverter.get_total_minutes(server_time)
+        
+        diff = abs(thermostat_minutes - server_minutes)
+        
+        is_in_sync = diff < 1
+        time_status = "in sync" if is_in_sync else "synchronizing time"
+        return time_status
+
+    @staticmethod
+    def get_total_minutes(day_and_time: TimeInfo):
+        day_index = int(REVERSE_DAY_MAP[day_and_time.day])
+        return day_index * 24 * 60 + day_and_time.hour * 60 + day_and_time.minute
