@@ -37,3 +37,5 @@ class HtmlDependencyAnalyzer(BaseDependencyAnalyzer):
                 resolved = self._resolve_reference(ref, "client/")
                 if resolved:
                     self.dependency_files.add(resolved)
+                else:
+                    self.missing_references.append((html_file.resolve(), ref))

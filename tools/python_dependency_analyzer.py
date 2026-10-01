@@ -1,12 +1,30 @@
 from __future__ import annotations
 
 import ast
+import importlib.machinery
+import logging
 import re
 import sys
 from modulefinder import ModuleFinder
 from pathlib import Path
 
 from base_dependency_analyzer import BaseDependencyAnalyzer
+
+logger = logging.getLogger(__name__)
+
+
+class _DiagnosticModuleFinder(ModuleFinder):
+    def find_module(self, name, path, parent=None):
+        try:
+            return super().find_module(name, path, parent)
+        except AttributeError as error:
+            spec = importlib.machinery.PathFinder.find_spec(name, path)
+            if spec is not None and spec.loader is None:
+                module_name = f"{parent.__name__}.{name}" if parent else name
+                raise AttributeError(
+                    f"namespace package {module_name!r} resolved with loader=None"
+                ) from error
+            raise
 
 
 class PythonDependencyAnalyzer(BaseDependencyAnalyzer):
@@ -23,25 +41,23 @@ class PythonDependencyAnalyzer(BaseDependencyAnalyzer):
         self.missing_references: list[tuple[Path, str]] = []
 
     def find_local_python_files(self):
-        """Use ModuleFinder like python_finder.py to discover reachable local modules."""
+        """Discover reachable local modules with Python's import resolver."""
         entrypoint = self.src_path / "thermo_ui_app.py"
         if entrypoint.exists():
             sys.path.insert(0, str(self.src_path))
-            finder = ModuleFinder()
+            finder = _DiagnosticModuleFinder()
             try:
                 finder.run_script(str(entrypoint))
-            except (FileNotFoundError, ImportError, ModuleNotFoundError):
-                pass
-            else:
-                for mod in finder.modules.values():
-                    if not mod.__file__:
-                        continue
-                    mod_path = Path(mod.__file__).resolve()
-                    if str(self.src_path) in str(mod_path):
-                        self.python_files.add(mod_path)
+            except (FileNotFoundError, ImportError, ModuleNotFoundError, AttributeError):
+                logger.exception("ModuleFinder failed while analyzing %s", entrypoint)
+                raise
 
-                if self.python_files:
-                    return
+            for mod in finder.modules.values():
+                if not mod.__file__:
+                    continue
+                mod_path = Path(mod.__file__).resolve()
+                if str(self.src_path) in str(mod_path):
+                    self.python_files.add(mod_path)
 
     def extract_imports(self, file_path: Path) -> set[str]:
         """Extract top-level imports from a Python file."""
@@ -71,7 +87,7 @@ class PythonDependencyAnalyzer(BaseDependencyAnalyzer):
     def _get_local_module_names(self) -> set[str]:
         """Return local module names resolved under the repository root."""
         local_names: set[str] = set()
-        root_path = self.root_path
+        root_path = self.src_path
 
         for py_file in self.python_files:
             try:
@@ -125,11 +141,15 @@ class PythonDependencyAnalyzer(BaseDependencyAnalyzer):
         with open(requirements_file, "r", encoding="utf-8") as handle:
             all_requirements = [line.strip() for line in handle if line.strip() and not line.startswith("#")]
 
+        normalized_imports = {
+            re.sub(r"[-_.]+", "-", name).lower() for name in self.external_imports
+        }
         used_requirements = []
         for req in all_requirements:
             package_name = req.split("[")[0]
             package_name = re.split(r'[<>=!]', package_name)[0].strip().lower()
-            if package_name in self.external_imports:
+            package_name = re.sub(r"[-_.]+", "-", package_name)
+            if package_name in normalized_imports:
                 used_requirements.append(req)
 
         return used_requirements

@@ -34,12 +34,14 @@ class CachingSequentialServer(ServerInterface):
 
     async def start_background_refresh(self) -> None:
         if self._refresh_task is None or self._refresh_task.done():
+            logger.info("Starting background refresh task")
             self._refresh_task = asyncio.create_task(self._refresh_cache_loop())
 
     async def stop_background_refresh(self) -> None:
         task = self._refresh_task
         self._refresh_task = None
         if task is not None:
+            logger.info("Stopping background refresh task")
             task.cancel()
             try:
                 await task
@@ -49,17 +51,22 @@ class CachingSequentialServer(ServerInterface):
     async def _refresh_cache_loop(self) -> None:
         while True:
             try:
-                await self.get_thermostat_schedule()
-                await self.get_state()
+                await self.get_thermostat_schedule(checkExpired = True)
+                await self.get_state(checkExpired = True)
             except asyncio.CancelledError:
+                logger.info("Background refresh task cancelled while making REST call")
                 raise
             except Exception:
                 logger.exception("Failed to refresh thermostat cache")
 
-            await asyncio.sleep(settings.cache_ttl_seconds / 10)
+            try:
+                await asyncio.sleep(settings.cache_ttl_seconds / 10)
+            except asyncio.CancelledError:
+                logger.info("Background refresh task cancelled while sleeping")
+                raise
 
-    async def get_thermostat_schedule(self) -> ScheduleData:
-        if self._cached_schedule is not None and not self._cached_schedule.is_expired():
+    async def get_thermostat_schedule(self, checkExpired: bool = False) -> ScheduleData:
+        if self._cached_schedule is not None and (not self._cached_schedule.is_expired() or not checkExpired):
             return self._cached_schedule.data
         
         async with self._lock:
@@ -84,8 +91,8 @@ class CachingSequentialServer(ServerInterface):
             return await self.server.set_current_time()
         
 
-    async def get_state(self) -> StateDTO:
-        if self._cached_state is not None and not self._cached_state.is_expired():
+    async def get_state(self, checkExpired: bool = False) -> StateDTO:
+        if self._cached_state is not None and (not self._cached_state.is_expired() or not checkExpired):
             return self._cached_state.data
         
         async with self._lock:

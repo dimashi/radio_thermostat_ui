@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from unittest.mock import AsyncMock
 
 import pytest
@@ -132,3 +133,24 @@ async def test_background_refresh_updates_schedule_and_state_cache(monkeypatch):
     assert state.temp == 70.0
     assert server.get_thermostat_schedule.await_count == 2
     assert server.get_state.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_stopping_refresh_during_sleep_logs_cancellation(caplog):
+    server = AsyncMock(spec=ServerInterface)
+    server.get_thermostat_schedule.return_value = ScheduleData()
+    refresh_started = asyncio.Event()
+
+    async def get_state():
+        refresh_started.set()
+        return make_state(68.0)
+
+    server.get_state.side_effect = get_state
+    caching_server = CachingSequentialServer(server)
+    caplog.set_level(logging.INFO, logger="server.caching_sequential_server")
+
+    await caching_server.start_background_refresh()
+    await refresh_started.wait()
+    await caching_server.stop_background_refresh()
+
+    assert "Background refresh task cancelled" in caplog.text

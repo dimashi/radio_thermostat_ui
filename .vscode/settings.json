@@ -2,9 +2,9 @@
   "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
   "python.terminal.activateEnvironment": true,
   "python.testing.pytestArgs": [
-    "tests/server",
-    "tests/thermostat",
+    "tests",
     "--cov=src",
+    "--cov=tools",
     "--cov-report=xml"
   ],
   "python.testing.unittestEnabled": false,

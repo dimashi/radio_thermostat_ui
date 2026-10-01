@@ -4,8 +4,9 @@ function scheduler() {
         originalDays: {},
         state: null,
         showOtherFields: false,
-        scheduleLoaded: false,
-        stateLoaded: false,
+        scheduleLoaded: true,
+        stateLoaded: true,
+        loadingProgressDelayMs: 1000,
         // Defaults (kept simple; schedule will be populated from server)
         defaultSlot: { time: '00:00', temp: '0' },
         defaultSlots: [ { time: '00:00', temp: '0' }, { time: '00:00', temp: '0' }, { time: '00:00', temp: '0' }, { time: '00:00', temp: '0' } ],
@@ -16,6 +17,9 @@ function scheduler() {
             await schedulePromise;
         },
         async loadSchedule() {
+            const loadingTimer = setTimeout(() => {
+                this.scheduleLoaded = false;
+            }, this.loadingProgressDelayMs);
             try {
                 const response = await fetch('/api/schedule');
                 if (response.ok) {
@@ -23,15 +27,24 @@ function scheduler() {
                     this.originalDays = JSON.parse(JSON.stringify(this.days));
                 } else { this.days = {}; }
             } catch (error) { console.error('Error loading schedule:', error); this.days = {}; }
-            finally { this.scheduleLoaded = true; }
+            finally {
+                clearTimeout(loadingTimer);
+                this.scheduleLoaded = true;
+            }
         },
         async loadState() {
+            const loadingTimer = setTimeout(() => {
+                this.stateLoaded = false;
+            }, this.loadingProgressDelayMs);
             try {
                 const response = await fetch('/api/state');
                 if (response.ok) { this.state = await response.json(); } 
                 else { this.state = null; }
             } catch (error) { console.error('Error loading state:', error); this.state = null; }
-            finally { this.stateLoaded = true; }
+            finally {
+                clearTimeout(loadingTimer);
+                this.stateLoaded = true;
+            }
         },
         getOriginalValue(day, index, field) {
             let value = this.originalDays[day]?.[index]?.[field] || '';
